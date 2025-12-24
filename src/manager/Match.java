@@ -6,6 +6,7 @@ public class Match {
 
     private Team teamA;
     private Team teamB;
+    private Team winner;
 
     public Match(Team teamA, Team teamB) {
         this.teamA = teamA;
@@ -20,11 +21,15 @@ public class Match {
         if (roll < teamA.getStrength()) {
             teamA.addWin();
             teamB.addLoss();
+            winner = teamA;
         } else if (roll < totalStrength) {
             teamA.addLoss();
             teamB.addWin();
+            winner = teamB;
         }
     }
+
+    public Team getWinner() { return winner; }
 
     public Team playKnockout() {
         Random rand = new Random();
@@ -34,10 +39,12 @@ public class Match {
         if (roll < teamA.getStrength()) {
             teamA.addWin();
             teamB.addLoss();
+            winner = teamA;
             return teamA;
         } else {
             teamB.addWin();
             teamA.addLoss();
+            winner = teamB;
             return teamB;
         }
     }
@@ -56,5 +63,9 @@ public class Match {
 
     public void setTeamB(Team t) {
         this.teamB = t;
+    }
+
+    public void setWinner(Team winner) {
+        this.winner = winner;
     }
 }

@@ -19,7 +19,6 @@ public class KnockoutPanel extends JPanel {
     private final int matchWidth = 120;
     private final int matchHeight = 30;
     private final int xPadding = 50;
-
     private int[][] matchY;
 
     public KnockoutPanel(Tournament tournament) {
@@ -30,7 +29,6 @@ public class KnockoutPanel extends JPanel {
         setPreferredSize(new Dimension(1200, 800));
 
         createRounds();
-        repaint(); // Draw the bracket immediately
     }
 
     private void createRounds() {
@@ -46,9 +44,7 @@ public class KnockoutPanel extends JPanel {
         int matches = round32.size() / 2;
         while (matches > 0) {
             ArrayList<Match> round = new ArrayList<>();
-            for (int i = 0; i < matches; i++) {
-                round.add(new Match(null, null)); // placeholders
-            }
+            for (int i = 0; i < matches; i++) round.add(new Match(null, null));
             rounds.add(round);
             matches /= 2;
         }
@@ -60,8 +56,21 @@ public class KnockoutPanel extends JPanel {
     @Override
     protected void paintComponent(Graphics g) {
         super.paintComponent(g);
+
         int width = getWidth();
         int height = getHeight();
+
+        // Draw soccer field: green background
+        g.setColor(new Color(34, 139, 34));
+        g.fillRect(0, 0, width, height);
+
+        // Halfway line
+        g.setColor(Color.WHITE);
+        g.drawLine(width / 2, 0, width / 2, height);
+
+        // Center circle
+        g.drawOval(width / 2 - 50, height / 2 - 50, 100, 100);
+
         int totalRounds = rounds.size();
 
         for (int col = 0; col < totalRounds; col++) {
@@ -70,17 +79,15 @@ public class KnockoutPanel extends JPanel {
             for (int i = 0; i < round.size(); i++) {
                 Match m = round.get(i);
 
-                // Determine x position
                 int x;
                 if (col == 0) x = (i < round.size() / 2) ? xPadding : width - xPadding - matchWidth;
                 else if (col == totalRounds - 1) x = width / 2 - matchWidth / 2;
                 else {
                     int branchWidth = (width / 2 - xPadding - matchWidth);
-                    if (i < round.size() / 2) x = xPadding + col * branchWidth / (totalRounds - 1);
-                    else x = width - xPadding - matchWidth - col * branchWidth / (totalRounds - 1);
+                    x = (i < round.size() / 2) ? xPadding + col * branchWidth / (totalRounds - 1)
+                            : width - xPadding - matchWidth - col * branchWidth / (totalRounds - 1);
                 }
 
-                // Determine y position
                 int y;
                 if (col == 0) {
                     int spacing = height / ((round.size() / 2) + 1);
@@ -93,45 +100,47 @@ public class KnockoutPanel extends JPanel {
                 }
                 matchY[col][i] = y;
 
-                // Highlight current match
+                // Box color: yellow if current match, green if winner exists, otherwise white
                 if (col == currentRound && i == currentMatch) {
                     g.setColor(Color.YELLOW);
                     g.fillRect(x - 5, y - 15, matchWidth + 10, matchHeight);
+                } else if (m.getWinner() != null) {
+                    g.setColor(new Color(200, 255, 200));
+                    g.fillRect(x, y - 15, matchWidth, matchHeight);
+                } else {
+                    g.setColor(Color.WHITE);
+                    g.fillRect(x, y - 15, matchWidth, matchHeight);
                 }
 
-                // Draw box
+                // Draw box and teams
                 g.setColor(Color.BLACK);
                 g.drawRect(x, y - 15, matchWidth, matchHeight);
+                g.drawString((m.getTeamA() != null) ? m.getTeamA().getName() : "TBD", x + 5, y - 2);
+                g.drawString((m.getTeamB() != null) ? m.getTeamB().getName() : "TBD", x + 5, y + 12);
 
-                // Draw team names only if available
-                String teamAName = (m.getTeamA() != null) ? m.getTeamA().getName() : "TBD";
-                String teamBName = (m.getTeamB() != null) ? m.getTeamB().getName() : "TBD";
-                g.drawString(teamAName, x + 5, y - 2);
-                g.drawString(teamBName, x + 5, y + 12);
-
-                // Draw connecting lines only if next match exists and both teams are set
+                // Draw bracket lines
                 if (col < totalRounds - 1) {
-                    Match nextMatch = rounds.get(col + 1).get(i / 2);
-                    if (nextMatch.getTeamA() != null || nextMatch.getTeamB() != null) {
-                        int nextY = matchY[col + 1][i / 2] - 15 + matchHeight / 2;
-                        int nextX;
-                        if (i < round.size() / 2) nextX = xPadding + (col + 1) * (width / 2 - xPadding - matchWidth) / (totalRounds - 1);
-                        else nextX = width - xPadding - matchWidth - (col + 1) * (width / 2 - xPadding - matchWidth) / (totalRounds - 1) + matchWidth;
-                        g.drawLine((i < round.size() / 2) ? x + matchWidth : x, y - 15 + matchHeight / 2, nextX, nextY);
-                    }
+                    int nextY = matchY[col + 1][i / 2] - 15 + matchHeight / 2;
+                    int nextX = (i < round.size() / 2)
+                            ? xPadding + (col + 1) * (width / 2 - xPadding - matchWidth) / (totalRounds - 1)
+                            : width - xPadding - matchWidth - (col + 1) * (width / 2 - xPadding - matchWidth) / (totalRounds - 1) + matchWidth;
+                    g.setColor(Color.WHITE);
+                    g.drawLine((i < round.size() / 2) ? x + matchWidth : x, y - 15 + matchHeight / 2, nextX, nextY);
                 }
             }
         }
 
-        // Draw champion box only if champion is set
+        // Draw champion
         if (champion != null) {
             int champX = width / 2 - matchWidth / 2;
-            int champY = height / 2 - matchHeight / 2 + 200;
+            int champY = 50;
+            g.setColor(new Color(255, 215, 0));
+            g.fillRect(champX, champY, matchWidth, matchHeight);
+            g.setColor(Color.BLACK);
             g.drawRect(champX, champY, matchWidth, matchHeight);
             g.drawString(champion.getName(), champX + 5, champY + matchHeight / 2 + 5);
         }
     }
-
 
     public void playNextMatch() {
         if (currentRound >= rounds.size()) return;
@@ -139,7 +148,6 @@ public class KnockoutPanel extends JPanel {
         if (match.getTeamA() == null || match.getTeamB() == null) return;
 
         Team winner = match.playKnockout();
-
         if (currentRound + 1 < rounds.size()) {
             Match nextMatch = rounds.get(currentRound + 1).get(currentMatch / 2);
             if (currentMatch % 2 == 0) nextMatch.setTeamA(winner);
@@ -155,15 +163,5 @@ public class KnockoutPanel extends JPanel {
         }
 
         repaint();
-    }
-
-    public void playFullRoundOfCurrent() {
-        if (currentRound >= rounds.size()) return;
-        int matchesInRound = rounds.get(currentRound).size();
-        while (currentMatch < matchesInRound) playNextMatch();
-    }
-
-    public void playFullTournament() {
-        while (currentRound < rounds.size()) playFullRoundOfCurrent();
     }
 }

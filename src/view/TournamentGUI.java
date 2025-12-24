@@ -11,26 +11,14 @@ public class TournamentGUI extends JFrame {
     private Tournament tournament;
     private TeamManager manager;
 
-    // Group stage controls
-    private JButton loadButton, simulateButton;
-    private JComboBox<String> modeCombo;
+    private JPanel topPanel;
+    private JButton loadButton, simulateButton, playRoundBtn, fullStageBtn;
     private JFileChooser fileChooser;
     private JPanel groupsPanel;
-    private boolean simulationStarted = false;
     private boolean groupStageComplete = false;
+    private int[] matchIndex;
 
-    private enum SimMode { ONE_GAME, ONE_GAME_ALL_GROUPS, WHOLE_GROUP_STAGE }
-    private SimMode simMode = SimMode.ONE_GAME;
-    private int[] groupMatchIndices;
-
-    // Knockout controls
     private KnockoutPanel knockoutPanel;
-    private JButton nextMatchBtn, playRoundBtn, playTournamentBtn;
-    private JPanel knockoutControlPanel;
-
-    // Button to transition to knockout
-    private JButton goToKnockoutBtn;
-    private JPanel topPanel;
 
     public TournamentGUI() {
         setTitle("World Cup Simulator");
@@ -44,205 +32,123 @@ public class TournamentGUI extends JFrame {
     private void initGroupStageControls() {
         topPanel = new JPanel();
         loadButton = new JButton("Load Teams");
-        simulateButton = new JButton("Simulate");
-
-        String[] options = { "One Game at a Time", "One Game for All Groups", "Whole Group Stage" };
-        modeCombo = new JComboBox<>(options);
-        modeCombo.addActionListener(e -> {
-            if (!simulationStarted) {
-                int idx = modeCombo.getSelectedIndex();
-                switch (idx) {
-                    case 0 -> simMode = SimMode.ONE_GAME;
-                    case 1 -> simMode = SimMode.ONE_GAME_ALL_GROUPS;
-                    case 2 -> simMode = SimMode.WHOLE_GROUP_STAGE;
-                }
-            }
-        });
+        simulateButton = new JButton("Simulate One Game");
+        playRoundBtn = new JButton("Play Group Round");
+        fullStageBtn = new JButton("Play Full Group Stage");
 
         topPanel.add(loadButton);
-        topPanel.add(modeCombo);
         topPanel.add(simulateButton);
+        topPanel.add(playRoundBtn);
+        topPanel.add(fullStageBtn);
         add(topPanel, BorderLayout.NORTH);
 
-        groupsPanel = new JPanel();
-        groupsPanel.setLayout(new GridLayout(0, 3, 5, 5));
+        groupsPanel = new JPanel(new GridLayout(3, 4, 8, 8)); // 4 groups per row
         add(new JScrollPane(groupsPanel), BorderLayout.CENTER);
 
         fileChooser = new JFileChooser();
 
         loadButton.addActionListener(e -> loadTeams());
-        simulateButton.addActionListener(e -> simulate());
+        simulateButton.addActionListener(e -> simulateOneGame());
+        playRoundBtn.addActionListener(e -> playGroupRound());
+        fullStageBtn.addActionListener(e -> playFullGroupStage());
     }
 
     private void loadTeams() {
-        int result = fileChooser.showOpenDialog(this);
-        if (result == JFileChooser.APPROVE_OPTION) {
-            try {
-                File file = fileChooser.getSelectedFile();
-                manager = new TeamManager();
-                manager.loadTeamsFromUserFile(file);
+        if (fileChooser.showOpenDialog(this) != JFileChooser.APPROVE_OPTION) return;
+        try {
+            File file = fileChooser.getSelectedFile();
+            manager = new TeamManager();
+            manager.loadTeamsFromUserFile(file);
 
-                tournament = new Tournament(manager.getTeams());
-                tournament.createGroups();
+            tournament = new Tournament(manager.getTeams());
+            tournament.createGroups();
 
-                groupMatchIndices = new int[tournament.getGroups().size()];
+            matchIndex = new int[tournament.getGroups().size()];
 
-                groupsPanel.removeAll();
-                char groupLabel = 'A';
-                for (Group g : tournament.getGroups()) {
-                    String groupName = "Group " + groupLabel;
-                    groupsPanel.add(new GroupPanel(g, groupName));
-                    groupLabel++;
-                }
+            groupsPanel.removeAll();
+            char label = 'A';
+            for (Group g : tournament.getGroups())
+                groupsPanel.add(new GroupPanel(g, "Group " + label++));
+            groupsPanel.revalidate();
+            groupsPanel.repaint();
 
-                groupsPanel.revalidate();
-                groupsPanel.repaint();
-                simulationStarted = false;
-
-            } catch (Exception ex) {
-                JOptionPane.showMessageDialog(this, "Error loading teams: " + ex.getMessage());
-            }
+        } catch (Exception ex) {
+            JOptionPane.showMessageDialog(this, "Error loading teams: " + ex.getMessage());
         }
     }
 
-    private void simulate() {
-        if (tournament == null) return;
-
-        simulationStarted = true;
-        modeCombo.setEnabled(false);
-
-        boolean allDone = true;
-
-        switch (simMode) {
-            case ONE_GAME -> allDone = simulateOneGame();
-            case ONE_GAME_ALL_GROUPS -> allDone = simulateOneGameAllGroups();
-            case WHOLE_GROUP_STAGE -> allDone = simulateWholeGroupStage();
-        }
-
-        if (allDone) {
-            JOptionPane.showMessageDialog(this, "Group Stage Complete!");
-            groupStageComplete = true;
-
-            // Hide group stage buttons
-            loadButton.setVisible(false);
-            simulateButton.setVisible(false);
-            modeCombo.setVisible(false);
-
-            // Show "Go to Knockout Stage" button
-            goToKnockoutBtn = new JButton("Go to Knockout Stage");
-            topPanel.add(goToKnockoutBtn);
-            goToKnockoutBtn.addActionListener(e -> {
-                remove(groupsPanel);
-                remove(topPanel);
-                showKnockoutControls();
-                revalidate();
-                repaint();
-            });
-
-            revalidate();
-            repaint();
-        }
-    }
-
-    private boolean simulateOneGame() {
-        boolean anyLeft = false;
-
+    private void simulateOneGame() {
+        boolean anyPlayed = false;
         for (int i = 0; i < tournament.getGroups().size(); i++) {
             Group g = tournament.getGroups().get(i);
             var matches = g.getAllMatches();
-            int idx = groupMatchIndices[i];
-
-            if (idx < matches.size()) {
-                Team teamA = matches.get(idx).getTeamA();
-                Team teamB = matches.get(idx).getTeamB();
-
-                g.playMatch(teamA, teamB);
+            if (matchIndex[i] < matches.size()) {
+                Match m = matches.get(matchIndex[i]);
+                g.playMatch(m.getTeamA(), m.getTeamB());
                 ((GroupPanel) groupsPanel.getComponent(i)).refresh();
-                groupMatchIndices[i]++;
-                anyLeft = true;
+                matchIndex[i]++;
+                anyPlayed = true;
                 break;
             }
         }
-        return !anyLeft;
+        if (!anyPlayed) finishGroupStage();
     }
 
-    private boolean simulateOneGameAllGroups() {
-        boolean anyLeft = false;
-
-        for (int i = 0; i < tournament.getGroups().size(); i++) {
-            Group g = tournament.getGroups().get(i);
-            ArrayList<Team> teams = g.getTeams();
-            int totalMatches = teams.size() * (teams.size() - 1) / 2;
-
-            if (groupMatchIndices[i] < totalMatches) {
-                int idx = groupMatchIndices[i];
-                int teamAIndex = 0, teamBIndex = 0;
-                int counter = 0;
-                outer:
-                for (int a = 0; a < teams.size(); a++) {
-                    for (int b = a + 1; b < teams.size(); b++) {
-                        if (counter == idx) {
-                            teamAIndex = a;
-                            teamBIndex = b;
-                            break outer;
-                        }
-                        counter++;
-                    }
-                }
-
-                g.playMatch(teams.get(teamAIndex), teams.get(teamBIndex));
-                ((GroupPanel) groupsPanel.getComponent(i)).refresh();
-                groupMatchIndices[i]++;
-                anyLeft = true;
-            }
-        }
-        return !anyLeft;
-    }
-
-    private boolean simulateWholeGroupStage() {
-        boolean anyLeft = false;
-
+    private void playGroupRound() {
+        boolean anyPlayed = false;
         for (int i = 0; i < tournament.getGroups().size(); i++) {
             Group g = tournament.getGroups().get(i);
             var matches = g.getAllMatches();
-
-            for (int j = groupMatchIndices[i]; j < matches.size(); j++) {
-                Team teamA = matches.get(j).getTeamA();
-                Team teamB = matches.get(j).getTeamB();
-                g.playMatch(teamA, teamB);
-                anyLeft = true;
+            if (matchIndex[i] < matches.size()) {
+                Match m = matches.get(matchIndex[i]);
+                g.playMatch(m.getTeamA(), m.getTeamB());
+                ((GroupPanel) groupsPanel.getComponent(i)).refresh();
+                matchIndex[i]++;
+                anyPlayed = true;
             }
-
-            ((GroupPanel) groupsPanel.getComponent(i)).refresh();
-            groupMatchIndices[i] = matches.size();
         }
-        return !anyLeft;
+        if (!anyPlayed) finishGroupStage();
     }
 
-    private void showKnockoutControls() {
-        tournament.determineTop32();
+    private void playFullGroupStage() {
+        boolean anyPlayed = false;
+        for (int i = 0; i < tournament.getGroups().size(); i++) {
+            Group g = tournament.getGroups().get(i);
+            var matches = g.getAllMatches();
+            for (; matchIndex[i] < matches.size(); matchIndex[i]++) {
+                Match m = matches.get(matchIndex[i]);
+                g.playMatch(m.getTeamA(), m.getTeamB());
+            }
+            ((GroupPanel) groupsPanel.getComponent(i)).refresh();
+            anyPlayed = true;
+        }
+        if (anyPlayed) finishGroupStage();
+    }
 
+    private void finishGroupStage() {
+        groupStageComplete = true;
+        JOptionPane.showMessageDialog(this, "Group Stage Complete!");
+
+
+
+        loadButton.setVisible(false);
+        simulateButton.setVisible(false);
+        playRoundBtn.setVisible(false);
+        fullStageBtn.setVisible(false);
+
+        showKnockoutStage();
+    }
+
+    private void showKnockoutStage() {
+        tournament.determineTop32();
         knockoutPanel = new KnockoutPanel(tournament);
         add(knockoutPanel, BorderLayout.CENTER);
 
-        // Highlight first match immediately
-        knockoutPanel.currentRound = 0;
-        knockoutPanel.currentMatch = 0;
-        knockoutPanel.repaint();
-
-        knockoutControlPanel = new JPanel();
-        nextMatchBtn = new JButton("Next Match");
-        playRoundBtn = new JButton("Play Round");
-        playTournamentBtn = new JButton("Play Tournament");
-
-        knockoutControlPanel.add(nextMatchBtn);
-        knockoutControlPanel.add(playRoundBtn);
-        knockoutControlPanel.add(playTournamentBtn);
-        add(knockoutControlPanel, BorderLayout.NORTH);
-
-        nextMatchBtn.addActionListener(e -> knockoutPanel.playNextMatch());
-        playRoundBtn.addActionListener(e -> knockoutPanel.playFullRoundOfCurrent());
-        playTournamentBtn.addActionListener(e -> knockoutPanel.playFullTournament());
+        JPanel controlPanel = new JPanel();
+        JButton nextBtn = new JButton("Next Match");
+        nextBtn.addActionListener(e -> knockoutPanel.playNextMatch());
+        controlPanel.add(nextBtn);
+        add(controlPanel, BorderLayout.NORTH);
 
         revalidate();
         repaint();

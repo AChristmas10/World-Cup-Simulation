@@ -16,42 +16,34 @@ public class GroupPanel extends JPanel {
     public GroupPanel(Group group, String groupName) {
         this.group = group;
         setLayout(new BorderLayout());
+        setBorder(BorderFactory.createTitledBorder(groupName));
 
-        // Table columns
-        String[] columns = {"Team", "Wins", "Losses", "Draws", "Points"};
+        String[] columns = { "Team", "Wins", "Draws", "Losses", "Points" };
         model = new DefaultTableModel(columns, 0) {
-            @Override
-            public boolean isCellEditable(int row, int column) {
-                return false; // make table read-only
-            }
+            public boolean isCellEditable(int row, int column) { return false; }
         };
         table = new JTable(model);
+        table.setRowHeight(18);
+        table.setPreferredScrollableViewportSize(new Dimension(200, 100));
 
-        // Reduce row height
-        table.setRowHeight(20); // default is usually ~16-18, you can adjust
+        add(new JScrollPane(table), BorderLayout.CENTER);
+        setPreferredSize(new Dimension(200, 140));
+        setMaximumSize(new Dimension(200, 140));
 
-        // Initialize table with 0 stats
-        for (Team t : group.getTeams()) {
-            model.addRow(new Object[]{t.getName(), t.getWins(), t.getLosses(), t.getDraws(), t.getPoints()});
-        }
-
-        // Wrap table in scroll pane but reduce preferred size
-        JScrollPane scrollPane = new JScrollPane(table);
-        scrollPane.setPreferredSize(new Dimension(200, 100)); // smaller height
-        add(scrollPane, BorderLayout.CENTER);
-
-        setBorder(BorderFactory.createTitledBorder(groupName));
+        refresh();
     }
 
-    // Update stats after a match
     public void refresh() {
+        model.setRowCount(0);
         ArrayList<Team> teams = group.getTeams();
-        for (int i = 0; i < teams.size(); i++) {
-            Team t = teams.get(i);
-            model.setValueAt(t.getWins(), i, 1);
-            model.setValueAt(t.getLosses(), i, 2);
-            model.setValueAt(t.getDraws(), i, 3);
-            model.setValueAt(t.getPoints(), i, 4);
+        for (Team t : teams) {
+            model.addRow(new Object[] {
+                    t.getName(),
+                    t.getWins(),
+                    t.getDraws(),
+                    t.getLosses(),
+                    t.getPoints()
+            });
         }
     }
 }
